@@ -3,8 +3,23 @@ import sys
 import logging
 import numpy as np
 import sherpa_onnx
+import subprocess
 
 logger = logging.getLogger(__name__)
+
+def auto_patch_model(model_path: str):
+    """
+    自动调用 patch_onnx.py 为模型打补丁，修复 missing metadata 错误
+    """
+    try:
+        patch_script = os.path.join(os.path.dirname(__file__), "patch_onnx.py")
+        if os.path.exists(patch_script):
+            logger.info(f"Checking and patching ONNX model metadata for {model_path}...")
+            # Run the python script to patch it
+            subprocess.run([sys.executable, patch_script, model_path], check=True, capture_output=True, text=True)
+            logger.info("ONNX metadata check complete.")
+    except Exception as e:
+        logger.error(f"Failed to auto-patch ONNX model metadata: {e}")
 
 class TTSEngine:
     _instance = None
@@ -49,6 +64,7 @@ class TTSEngine:
             return
             
         logger.info(f"加载 TTS 模型: {vits_model}")
+        auto_patch_model(vits_model)
         
         vits_config = sherpa_onnx.OfflineTtsVitsModelConfig(
             model=vits_model,
