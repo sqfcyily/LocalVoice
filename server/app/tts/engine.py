@@ -135,6 +135,14 @@ class TTSEngine:
                 logger.warning(f"模型未能对以下文本生成有效音频，已跳过: '{text}'")
                 return b""
                 
+            # 极端的防御：如果模型因为底层 C++ 内存泄漏或者字典越界，
+            # 吐出了一个大得离谱的垃圾数组（比如几十亿个元素），在乘以 32767 时会导致 MemoryError。
+            # 假设一句话最长 300 字，按最慢语速，生成的音频也极少超过 3 分钟（以 24000Hz 算约 4320000 个采样点）。
+            # 我们设置一个 10,000,000 采样点的硬上限（约 7 分钟音频），超过这个直接丢弃。
+            if len(audio.samples) > 10000000:
+                logger.error(f"严重异常：模型返回了异常巨大的音频数组 ({len(audio.samples)} samples)，已强行丢弃以防止内存溢出。文本: '{text}'")
+                return b""
+                
             # 转换为 16-bit PCM
             samples_int16 = (audio.samples * 32767).astype(np.int16)
             return samples_int16.tobytes()
