@@ -135,21 +135,22 @@ class TTSEngine:
                 logger.warning(f"模型未能对以下文本生成有效音频，已跳过: '{text}'")
                 return b""
                 
-            # 极端的防御：如果模型因为底层 C++ 内存泄漏或者字典越界，
-            # 吐出了一个大得离谱的垃圾数组（比如几十亿个元素），在乘以 32767 时会导致 MemoryError。
-            # 假设一句话最长 300 字，按最慢语速，生成的音频也极少超过 3 分钟（以 24000Hz 算约 4320000 个采样点）。
-            # 我们设置一个 10,000,000 采样点的硬上限（约 7 分钟音频），超过这个直接丢弃。
-            if len(audio.samples) > 10000000:
-                logger.error(f"严重异常：模型返回了异常巨大的音频数组 ({len(audio.samples)} samples)，已强行丢弃以防止内存溢出。文本: '{text}'")
-                return b""
+            # 终极防御：我们绝不相信底层 C++ 传回来的数组长度。
+            # 如果 `len(audio.samples)` 被污染成了一个极大值，
+            # 下面的 np.zeros() 甚至 audio.samples[i:end] 的切片本身都会触发 MemoryError。
+            # 正常的一句话（300字）生成的音频绝不应该超过 1 分钟（以 24000Hz 算，约 1,440,000 采样点）。
+            # 我们在这里做一个强行物理截断：只取前 2,000,000 个采样点。
+            safe_length = min(len(audio.samples), 2000000)
+            
+            if len(audio.samples) > 2000000:
+                logger.warning(f"检测到异常长的音频数组 ({len(audio.samples)} samples)，可能由 OOV 或底层崩溃引起。已强制截断至安全长度。")
                 
-            # 终极防御：如果系统可用内存不足，直接对 numpy 数组进行整块乘法也会导致 MemoryError。
-            # 为了保证绝对的稳定性，我们采用就地分块处理（Chunked in-place processing）
-            samples_int16 = np.zeros(len(audio.samples), dtype=np.int16)
-            chunk_size = 1000000
-            for i in range(0, len(audio.samples), chunk_size):
-                end = min(i + chunk_size, len(audio.samples))
-                # 注意：我们避免创建一个大的临时 float64 数组，直接转换为 int16
+            # 分块处理以保护内存
+            samples_int16 = np.zeros(safe_length, dtype=np.int16)
+            chunk_size = 100000
+            for i in range(0, safe_length, chunk_size):
+                end = min(i + chunk_size, safe_length)
+                # 直接在小块上进行转换
                 samples_int16[i:end] = np.int16(audio.samples[i:end] * 32767)
                 
             return samples_int16.tobytes()
