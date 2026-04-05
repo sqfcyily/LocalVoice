@@ -12,8 +12,14 @@ from app.tts.engine import engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 初始化 TTS 引擎
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    models_dir = os.path.join(base_dir, "resources", "models")
+    # 优先从环境变量 MODEL_DIR 读取，如果没有则使用默认路径
+    env_model_dir = os.environ.get("MODEL_DIR")
+    if env_model_dir:
+        models_dir = os.path.abspath(env_model_dir)
+    else:
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        models_dir = os.path.join(base_dir, "resources", "models")
+        
     os.makedirs(models_dir, exist_ok=True)
     engine.initialize(models_dir)
     

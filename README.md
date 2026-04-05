@@ -58,7 +58,12 @@ git submodule update --init --recursive
 ```bash
 cd server
 source venv/bin/activate
+
+# 默认模型目录为 server/resources/models/
 uvicorn app.main:app --host 0.0.0.0 --port 7860 --reload
+
+# [可选] 如果你想指定任意绝对路径作为模型库，可以使用 MODEL_DIR 环境变量：
+# MODEL_DIR=/your/custom/path/to/models uvicorn app.main:app --host 0.0.0.0 --port 7860 --reload
 ```
 *当看到 `TTS 引擎初始化成功` 的日志时，说明这头性能怪兽已经饥渴难耐了。*
 
