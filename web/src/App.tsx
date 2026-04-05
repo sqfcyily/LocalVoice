@@ -11,7 +11,9 @@ import {
   Languages, 
   CheckCircle2, 
   Loader2,
-  AlertCircle
+  AlertCircle,
+  List,
+  Library
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
