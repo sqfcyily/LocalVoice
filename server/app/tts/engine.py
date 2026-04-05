@@ -143,8 +143,15 @@ class TTSEngine:
                 logger.error(f"严重异常：模型返回了异常巨大的音频数组 ({len(audio.samples)} samples)，已强行丢弃以防止内存溢出。文本: '{text}'")
                 return b""
                 
-            # 转换为 16-bit PCM
-            samples_int16 = (audio.samples * 32767).astype(np.int16)
+            # 终极防御：如果系统可用内存不足，直接对 numpy 数组进行整块乘法也会导致 MemoryError。
+            # 为了保证绝对的稳定性，我们采用就地分块处理（Chunked in-place processing）
+            samples_int16 = np.zeros(len(audio.samples), dtype=np.int16)
+            chunk_size = 1000000
+            for i in range(0, len(audio.samples), chunk_size):
+                end = min(i + chunk_size, len(audio.samples))
+                # 注意：我们避免创建一个大的临时 float64 数组，直接转换为 int16
+                samples_int16[i:end] = np.int16(audio.samples[i:end] * 32767)
+                
             return samples_int16.tobytes()
         except Exception as e:
             logger.error(f"TTS 推理引擎崩溃! 文本: '{text}', 错误: {e}")
