@@ -73,7 +73,9 @@ async def process_file(job: Job, f_progress: JobFileProgress):
             f_progress.status = "completed"
             return
             
-        out_dir = os.path.join("/workspace/apps/server/data/outputs", job.id)
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        outputs_dir = os.path.join(base_dir, "data", "outputs")
+        out_dir = os.path.join(outputs_dir, job.id)
         os.makedirs(out_dir, exist_ok=True)
         basename = os.path.basename(f_progress.file_path)
         name, _ = os.path.splitext(basename)

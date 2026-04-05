@@ -483,7 +483,7 @@ function LibraryView({ t }: { t: typeof dict['en'] }) {
               
               <div className="grid gap-3">
                 {validFiles.map((f: any, idx: number) => {
-                  const filename = f.output_wav.split('/').pop();
+                  const filename = f.output_wav.split(/[/\\]/).pop();
                   const url = `http://localhost:7860/api/outputs/${job.id}/${filename}`;
                   
                   return (
