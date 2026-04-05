@@ -135,23 +135,24 @@ class TTSEngine:
                 logger.warning(f"模型未能对以下文本生成有效音频，已跳过: '{text}'")
                 return b""
                 
-            # 终极防御：我们绝不相信底层 C++ 传回来的数组长度。
-            # 如果 `len(audio.samples)` 被污染成了一个极大值，
-            # 下面的 np.zeros() 甚至 audio.samples[i:end] 的切片本身都会触发 MemoryError。
-            # 正常的一句话（300字）生成的音频绝不应该超过 1 分钟（以 24000Hz 算，约 1,440,000 采样点）。
-            # 我们在这里做一个强行物理截断：只取前 2,000,000 个采样点。
-            safe_length = min(len(audio.samples), 2000000)
+            # 终极防御 v4：
+            # 在某些 Windows 环境下，C++ 返回的 audio.samples (SwigPyObject 或 ctypes 指针包装)
+            # 在与 numpy 发生任何运算（切片、乘法、len()）时都可能因为内存对齐问题触发 MemoryError。
+            # 我们不信任它的切片能力，而是将它强转为 Python 列表，或者使用 numpy.frombuffer 进行安全的拷贝。
             
-            if len(audio.samples) > 2000000:
-                logger.warning(f"检测到异常长的音频数组 ({len(audio.samples)} samples)，可能由 OOV 或底层崩溃引起。已强制截断至安全长度。")
+            # 安全地把底层内存拷贝出来
+            samples_np = np.array(audio.samples, dtype=np.float32, copy=True)
+            
+            # 物理截断
+            safe_length = min(len(samples_np), 2000000)
+            if len(samples_np) > 2000000:
+                logger.warning(f"检测到异常长的音频数组 ({len(samples_np)} samples)，已强制截断至安全长度。")
                 
-            # 分块处理以保护内存
-            samples_int16 = np.zeros(safe_length, dtype=np.int16)
-            chunk_size = 100000
-            for i in range(0, safe_length, chunk_size):
-                end = min(i + chunk_size, safe_length)
-                # 直接在小块上进行转换
-                samples_int16[i:end] = np.int16(audio.samples[i:end] * 32767)
+            samples_np = samples_np[:safe_length]
+            
+            # 安全计算：使用 np.clip 防止溢出，然后转为 int16
+            samples_np = np.clip(samples_np * 32767.0, -32768.0, 32767.0)
+            samples_int16 = samples_np.astype(np.int16)
                 
             return samples_int16.tobytes()
         except Exception as e:
