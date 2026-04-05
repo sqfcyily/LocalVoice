@@ -1,0 +1,10 @@
+node_modules/
+dist/
+venv/
+__pycache__/
+*.pyc
+.env
+data/outputs/
+data/temp/
+resources/models/
+.DS_Store
