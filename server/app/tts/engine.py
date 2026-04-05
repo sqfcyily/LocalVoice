@@ -38,52 +38,80 @@ class TTSEngine:
         
         # Sherpa-onnx 典型需要 model.onnx, lexicon.txt, tokens.txt, 有的需要 dict 目录
         vits_model = ""
+        matcha_acoustic = ""
+        matcha_vocoder = ""
         lexicon = ""
         tokens = ""
         dict_dir = ""
-        rule_fsts = ""
+        rule_fsts = []
         
         for root, dirs, files in os.walk(models_dir):
             for file in files:
                 if file.endswith(".onnx"):
-                    vits_model = os.path.join(root, file)
+                    # Heuristic to separate matcha from vits
+                    if "vocoder" in file or "hifigan" in file:
+                        matcha_vocoder = os.path.join(root, file)
+                    elif "matcha" in file or "model-steps" in file:
+                        matcha_acoustic = os.path.join(root, file)
+                    else:
+                        vits_model = os.path.join(root, file)
                 elif file == "lexicon.txt":
                     lexicon = os.path.join(root, file)
                 elif file == "tokens.txt":
                     tokens = os.path.join(root, file)
-                elif file.endswith(".fst") and "rule" in file:
-                    rule_fsts = os.path.join(root, file)
+                elif file.endswith(".fst") and ("rule" in file or "phone" in file or "date" in file or "number" in file):
+                    rule_fsts.append(os.path.join(root, file))
                     
             if "dict" in dirs:
                 dict_dir = os.path.join(root, "dict")
         
-        if not vits_model:
-            logger.warning(f"在 {models_dir} 中未找到 ONNX 模型，TTS 引擎将不可用。")
+        # Determine if it's VITS or Matcha
+        if matcha_acoustic and not vits_model:
+            logger.info(f"Detected Matcha TTS model: {matcha_acoustic}")
+            auto_patch_model(matcha_acoustic)
+            matcha_config = sherpa_onnx.OfflineTtsMatchaModelConfig(
+                acoustic_model=matcha_acoustic,
+                vocoder=matcha_vocoder,
+                lexicon=lexicon,
+                tokens=tokens,
+            )
+            if dict_dir:
+                matcha_config.dict_dir = dict_dir
+                
+            model_config = sherpa_onnx.OfflineTtsModelConfig(
+                matcha=matcha_config,
+                num_threads=1,
+                debug=False,
+                provider="cpu",
+            )
+        elif vits_model:
+            logger.info(f"Detected VITS TTS model: {vits_model}")
+            auto_patch_model(vits_model)
+            vits_config = sherpa_onnx.OfflineTtsVitsModelConfig(
+                model=vits_model,
+                lexicon=lexicon,
+                tokens=tokens,
+            )
+            if dict_dir:
+                vits_config.dict_dir = dict_dir
+                
+            model_config = sherpa_onnx.OfflineTtsModelConfig(
+                vits=vits_config,
+                num_threads=1,
+                debug=False,
+                provider="cpu",
+            )
+        else:
+            logger.warning(f"在 {models_dir} 中未找到受支持的 ONNX 模型 (VITS 或 Matcha)，TTS 引擎将不可用。")
             self.tts = None
             self.sample_rate = 16000
             return
-            
-        logger.info(f"加载 TTS 模型: {vits_model}")
-        auto_patch_model(vits_model)
         
-        vits_config = sherpa_onnx.OfflineTtsVitsModelConfig(
-            model=vits_model,
-            lexicon=lexicon,
-            tokens=tokens,
-        )
-        if dict_dir:
-            vits_config.dict_dir = dict_dir
-
-        model_config = sherpa_onnx.OfflineTtsModelConfig(
-            vits=vits_config,
-            num_threads=1, # 严格单线程，防止 OOM 和锁死
-            debug=False,
-            provider="cpu",
-        )
-        
+        # 组装完整的 TTS 配置
+        rule_fsts_str = ",".join(rule_fsts) if rule_fsts else ""
         tts_config = sherpa_onnx.OfflineTtsConfig(
             model=model_config,
-            rule_fsts=rule_fsts,
+            rule_fsts=rule_fsts_str,
             max_num_sentences=1,
         )
         

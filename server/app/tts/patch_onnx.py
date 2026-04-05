@@ -22,14 +22,16 @@ def patch_model(model_path):
         print("Missing 'add_blank' metadata. Injecting it now...")
         meta = model.metadata_props.add()
         meta.key = "add_blank"
+        # 默认使用 1，但如果模型不需要 blank，可能导致发音错误。这里作为保底策略。
         meta.value = "1"
         needs_save = True
 
     if "sample_rate" not in existing_keys:
-        print("Missing 'sample_rate' metadata. Injecting it now (defaulting to 16000)...")
+        print("Missing 'sample_rate' metadata. Injecting it now (defaulting to 22050)...")
         meta = model.metadata_props.add()
         meta.key = "sample_rate"
-        meta.value = "16000"
+        # VITS/Matcha 模型通常是 22050
+        meta.value = "22050"
         needs_save = True
 
     if "punctuation" not in existing_keys:
@@ -37,6 +39,14 @@ def patch_model(model_path):
         meta = model.metadata_props.add()
         meta.key = "punctuation"
         meta.value = "，。！？、；：,.!?;:"
+        needs_save = True
+        
+    # Matcha TTS 等非 VITS 模型可能需要 'jieba' 作为 frontend
+    if "frontend" not in existing_keys:
+        print("Missing 'frontend' metadata. Injecting it now...")
+        meta = model.metadata_props.add()
+        meta.key = "frontend"
+        meta.value = "jieba"
         needs_save = True
         
     if needs_save:
