@@ -4,8 +4,14 @@ import os
 
 def patch_model(model_path):
     print(f"Checking model metadata for: {model_path}")
-    model = onnx.load(model_path)
-    
+    try:
+        model = onnx.load(model_path)
+    except Exception as e:
+        print(f"Failed to load ONNX model (it might be unsupported or int8 quantized): {e}")
+        # 如果连加载都失败了，说明这个模型可能格式特殊（比如某些 int8 量化模型），
+        # 我们就不去强行打补丁了，直接跳过。
+        return
+        
     existing_keys = [prop.key for prop in model.metadata_props]
     print(f"Existing metadata keys: {existing_keys}")
     
@@ -22,7 +28,6 @@ def patch_model(model_path):
         print("Missing 'add_blank' metadata. Injecting it now...")
         meta = model.metadata_props.add()
         meta.key = "add_blank"
-        # 默认使用 1，但如果模型不需要 blank，可能导致发音错误。这里作为保底策略。
         meta.value = "1"
         needs_save = True
 
@@ -30,7 +35,6 @@ def patch_model(model_path):
         print("Missing 'sample_rate' metadata. Injecting it now (defaulting to 22050)...")
         meta = model.metadata_props.add()
         meta.key = "sample_rate"
-        # VITS/Matcha 模型通常是 22050
         meta.value = "22050"
         needs_save = True
 
@@ -41,18 +45,13 @@ def patch_model(model_path):
         meta.value = "，。！？、；：,.!?;:"
         needs_save = True
         
-    # Matcha TTS 等非 VITS 模型可能需要 'jieba' 作为 frontend
-    if "frontend" not in existing_keys:
-        print("Missing 'frontend' metadata. Injecting it now...")
-        meta = model.metadata_props.add()
-        meta.key = "frontend"
-        meta.value = "jieba"
-        needs_save = True
-        
     if needs_save:
-        # Save back to the same file
-        onnx.save(model, model_path)
-        print(f"Model successfully patched and saved: {model_path}")
+        try:
+            # Save back to the same file
+            onnx.save(model, model_path)
+            print(f"Model successfully patched and saved: {model_path}")
+        except Exception as e:
+            print(f"Failed to save patched ONNX model (it might be larger than protobuf limit): {e}")
     else:
         print("Model already contains necessary metadata. No changes made.")
 
