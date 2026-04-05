@@ -97,9 +97,13 @@ async def process_file(job: Job, f_progress: JobFileProgress):
                     
                 pcm_data = await loop.run_in_executor(tts_executor, engine.generate_audio_pcm, seg)
                 
-                wav_file.writeframes(pcm_data)
-                if i < len(segments) - 1:
-                    wav_file.writeframes(silence_bytes)
+                # 防御性写入：只有当模型真的吐出了音频数据时，才写入文件。
+                # 某些模型（如 MeloTTS）如果整个句子全是不认识的符号，会返回空的 byte array。
+                if pcm_data and len(pcm_data) > 0:
+                    wav_file.writeframes(pcm_data)
+                    # 只有写入了有效音频，才追加静音
+                    if i < len(segments) - 1:
+                        wav_file.writeframes(silence_bytes)
                     
                 f_progress.done_segments += 1
                 
