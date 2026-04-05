@@ -127,15 +127,20 @@ class TTSEngine:
         if not self._initialized or not self.tts:
             raise RuntimeError("TTS Engine is not initialized or model is missing.")
             
-        # audio.samples 是一维 float32 NumPy 数组，范围 [-1.0, 1.0]
-        audio = self.tts.generate(text, sid=sid, speed=speed)
-        
-        if len(audio.samples) == 0:
-            return b""
+        try:
+            # audio.samples 是一维 float32 NumPy 数组，范围 [-1.0, 1.0]
+            audio = self.tts.generate(text, sid=sid, speed=speed)
             
-        # 转换为 16-bit PCM
-        samples_int16 = (audio.samples * 32767).astype(np.int16)
-        return samples_int16.tobytes()
+            if audio is None or len(audio.samples) == 0:
+                logger.warning(f"模型未能对以下文本生成有效音频，已跳过: '{text}'")
+                return b""
+                
+            # 转换为 16-bit PCM
+            samples_int16 = (audio.samples * 32767).astype(np.int16)
+            return samples_int16.tobytes()
+        except Exception as e:
+            logger.error(f"TTS 推理引擎崩溃! 文本: '{text}', 错误: {e}")
+            raise
 
 # 全局单例
 engine = TTSEngine()

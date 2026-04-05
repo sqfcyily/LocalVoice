@@ -110,7 +110,9 @@ async def process_file(job: Job, f_progress: JobFileProgress):
         f_progress.status = "completed"
         
     except Exception as e:
-        logger.error(f"处理文件失败 {f_progress.file_path}: {e}")
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"处理文件失败 {f_progress.file_path}:\n{error_details}")
         f_progress.status = "failed"
         f_progress.error = str(e)
         
