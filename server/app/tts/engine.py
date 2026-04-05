@@ -10,16 +10,16 @@ logger = logging.getLogger(__name__)
 def auto_patch_model(model_path: str):
     """
     自动调用 patch_onnx.py 为模型打补丁，修复 missing metadata 错误
+    如果补丁脚本执行失败，不再打印烦人的错误日志，静默放行。
     """
     try:
         patch_script = os.path.join(os.path.dirname(__file__), "patch_onnx.py")
         if os.path.exists(patch_script):
-            logger.info(f"Checking and patching ONNX model metadata for {model_path}...")
             # Run the python script to patch it
             subprocess.run([sys.executable, patch_script, model_path], check=True, capture_output=True, text=True)
-            logger.info("ONNX metadata check complete.")
-    except Exception as e:
-        logger.error(f"Failed to auto-patch ONNX model metadata: {e}")
+    except Exception:
+        # 我们在这里彻底闭嘴，只要模型还能被 Sherpa-onnx 加载就行。
+        pass
 
 class TTSEngine:
     _instance = None

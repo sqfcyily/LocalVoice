@@ -50,7 +50,13 @@ def clean_markdown(text: str) -> str:
     # 9. 规范化空白字符（将多余的空格或制表符缩减为一个空格）
     text = re.sub(r'[ \t]+', ' ', text)
     
-    # 10. 清理多余空行（最多保留两个换行符作为段落分割）
+    # 10. 彻底清理所有的 Emoji (表情符号) 
+    # MeloTTS 等模型在字典里找不到 emoji (比如 🚀, ✨ 等) 就会抛出 Ignore OOV 警告，
+    # 甚至有些底层 C++ 词典匹配代码会直接因为非预期字符崩溃。
+    import emoji
+    text = emoji.replace_emoji(text, replace='')
+    
+    # 11. 清理多余空行（最多保留两个换行符作为段落分割）
     text = re.sub(r'\n{3,}', '\n\n', text)
     
     return text.strip()

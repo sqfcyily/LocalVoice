@@ -4,3 +4,5 @@ pydantic
 sherpa-onnx
 loguru
 aiofiles
+onnx
+emoji
